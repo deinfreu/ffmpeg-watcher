@@ -1,0 +1,13 @@
+{
+  "name": "ffmpeg-orchestrator",
+  "version": "1.0.0",
+  "module": "src/index.ts",
+  "dependencies": {
+    "elysia": "latest",
+    "ioredis": "^5.4.1",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

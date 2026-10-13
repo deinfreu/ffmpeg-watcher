@@ -12,6 +12,8 @@ lerna-debug.log*
 # package-json
 package-json.lock
 
+# bun lock file (should be committed for reproducible builds)
+bun.lockb
 # bun deploy file
 node_modules.bun
 

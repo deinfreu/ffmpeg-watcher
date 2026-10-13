@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build: ./server
+    container_name: ffmpeg-orchestrator
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./server/.env
+    environment:
+      - TZ=Europe/Amsterdam
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - valkey
+      - postgres
+
+  valkey:
+    image: valkey/valkey:alpine
+    container_name: ffmpeg-valkey
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    env_file:
+      - ./server/.env
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ffmpeg-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    env_file:
+      - ./server/.env
+    environment:
+      - TZ=Europe/Amsterdam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ffmpeg-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8080:8081"
+    environment:
+      - TZ=Europe/Amsterdam
+      - REDIS_HOSTS=${REDIS_HOSTS:-local:valkey:6379:0}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - valkey
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: ffmpeg-pgweb
+    restart: unless-stopped
+    command: ["--log-level=error"]
+    ports:
+      - "8082:8081"
+    environment:
+      - TZ=Europe/Amsterdam
+      - PGWEB_DATABASE_URL=${DATABASE_URL}?sslmode=disable
+      - PGWEB_LOG_LEVEL=error
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - postgres
+
+volumes:
+  valkey_data:
+  postgres_data:
