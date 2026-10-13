@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   orchestrator:
     build: ./server
@@ -7,19 +5,22 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    env_file:
-      - ./server/.env
     environment:
       - TZ=Europe/Amsterdam
+      - NODE_ENV=${NODE_ENV}
       - VALKEY_HOST=valkey
       - VALKEY_PORT=6379
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./server:/app
       - /app/node_modules
+      - /app/.parcel-cache
       - /etc/localtime:/etc/localtime:ro
     depends_on:
-      - valkey
-      - postgres
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   valkey:
     image: valkey/valkey:alpine
@@ -27,8 +28,11 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    env_file:
-      - ./server/.env
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   postgres:
     image: postgres:16-alpine
@@ -36,13 +40,18 @@ services:
     restart: unless-stopped
     ports:
       - "5432:5432"
-    env_file:
-      - ./server/.env
     environment:
       - TZ=Europe/Amsterdam
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=ffmpeg_orchestrator
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ffmpeg_orchestrator"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   redis-commander:
     image: rediscommander/redis-commander:latest
@@ -56,7 +65,8 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     depends_on:
-      - valkey
+      valkey:
+        condition: service_healthy
 
   pgweb:
     image: sosedoff/pgweb:latest
@@ -72,8 +82,8 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 volumes:
-  valkey_data:
   postgres_data:

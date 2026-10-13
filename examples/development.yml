@@ -1,0 +1,99 @@
+# Docker Compose — Development
+#
+# Run with:
+#   docker compose -f examples/development.yml up
+#
+# This file is optimized for local development:
+#   - Hot-reload via volume mounts
+#   - Dev tooling (Redis Commander, pgweb)
+#   - Health checks prevent race conditions
+
+services:
+  orchestrator:
+    build: ../server
+    container_name: ffmpeg-orchestrator
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - TZ=Europe/Amsterdam
+      - NODE_ENV=${NODE_ENV:-development}
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ../server:/app
+      - /app/node_modules
+      - /app/.parcel-cache
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  valkey:
+    image: valkey/valkey:alpine
+    container_name: ffmpeg-valkey
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ffmpeg-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - TZ=Europe/Amsterdam
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=ffmpeg_orchestrator
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ffmpeg_orchestrator"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ffmpeg-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8080:8081"
+    environment:
+      - TZ=Europe/Amsterdam
+      - REDIS_HOSTS=${REDIS_HOSTS:-local:valkey:6379:0}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: ffmpeg-pgweb
+    restart: unless-stopped
+    command: ["--log-level=error"]
+    ports:
+      - "8082:8081"
+    environment:
+      - TZ=Europe/Amsterdam
+      - PGWEB_DATABASE_URL=${DATABASE_URL}?sslmode=disable
+      - PGWEB_LOG_LEVEL=error
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
